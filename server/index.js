@@ -3,6 +3,8 @@ import * as dotenv from 'dotenv';
 import cors from 'cors';
 
 import connectDB from './mongodb/connect.js';
+import postRoutes from './routes/postRoutes.js';
+import dalleRoutes from './routes/dalleRoutes.js';
 
 dotenv.config(); 
 
@@ -13,6 +15,9 @@ app.use(express.json({ limit: '50mb' }));
 app.get('/', async (req, res) => {
     res.send('Hello from AI Image Generator Server')
 })
+
+app.use('/api/v1/post', postRoutes);
+app.use('/api/v1/dalle', dalleRoutes);
 
 const startServer = async () => {
 
