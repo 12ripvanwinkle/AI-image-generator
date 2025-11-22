@@ -1,47 +1,50 @@
 import express from 'express';
-import * as dotenv from 'dotenv';
+import dotenv from 'dotenv';
+import { InferenceClient } from '@huggingface/inference';
 
 dotenv.config();
 
 const router = express.Router();
-// 1st Route to test if the route is working
-router.route('/').get((req, res) => {
+const client = new InferenceClient(process.env.HF_TOKEN);
+
+// 1st Route: Test if the route is working
+router.get('/', (req, res) => {
     res.send('Hello from DALL-E route');
 });
 
-// 2nd Route to generate an image using Hugging Face API
-router.route('/').post(async (req, res) => {
+// 2nd Route: Generate an image using Hugging Face API
+router.post('/', async (req, res) => {
     try {
         const { prompt } = req.body;
 
-        // Call Hugging Face API
-        const response = await fetch(
-            'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1',
-            {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ inputs: prompt }),
-            }
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Hugging Face API error: ${errorText}`);
+        if (!prompt) {
+            return res.status(400).json({ success: false, message: 'Prompt is required' });
         }
 
-        // Get the image as a buffer
-        const imageBuffer = await response.arrayBuffer();
-        
-        // Convert to base64 (matching OpenAI's b64_json format)
-        const image = Buffer.from(imageBuffer).toString('base64');
+        console.log('Received prompt:', prompt);
 
-        res.status(200).json({ photo: image });
+        // Call Hugging Face API with the new model
+        const imageBlob = await client.textToImage({
+            provider: 'nscale', // provider for free usage
+            model: 'stabilityai/stable-diffusion-xl-base-1.0',
+            inputs: prompt,
+            parameters: { num_inference_steps: 5 }, // optional tuning
+        });
+
+        // Convert Blob to base64
+        const arrayBuffer = await imageBlob.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const imageBase64 = buffer.toString('base64');
+
+        res.status(200).json({ photo: imageBase64 });
+
     } catch (error) {
-        console.log(error);
-        res.status(500).send(error?.message || 'Something went wrong');
+        console.error('Error generating image:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: error?.message || 'Something went wrong',
+            stack: error?.stack 
+        });
     }
 });
 
